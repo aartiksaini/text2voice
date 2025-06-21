@@ -1,13 +1,13 @@
 """
-Standalone TTS Backend API Server
+Independent Backend Server for TTS Application
 Flask-based REST API with OpenAI compatibility
 """
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-import logging
 import time
 import io
+import logging
 from enhanced_tts_service import EnhancedTTSService
 import os
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend communication
+CORS(app)  # Enable CORS for frontend access
 
 # Global TTS service instance
 tts_service = None
@@ -99,7 +99,8 @@ def create_speech():
             mimetype=content_type,
             headers={
                 'Content-Disposition': f'attachment; filename="speech.{response_format}"',
-                'Content-Length': str(len(audio_data))
+                'Content-Length': str(len(audio_data)),
+                'Access-Control-Allow-Origin': '*'
             }
         )
         
@@ -132,34 +133,43 @@ def list_models():
 def list_voices():
     """List available voices"""
     tts = initialize_tts()
-    voices_config = tts.get_supported_voices()
+    voices = tts.get_supported_voices()
     
-    voices = []
-    for lang, voice_list in voices_config.items():
-        for voice_id in voice_list:
-            voices.append({
-                "id": voice_id,
-                "name": voice_id.title(),
+    voice_list = []
+    for lang, voice_names in voices.items():
+        for voice_name in voice_names:
+            voice_list.append({
+                "id": voice_name,
+                "name": voice_name.title(),
                 "language": lang,
-                "description": f"{lang.upper()} voice - {voice_id}"
+                "description": f"Voice for {lang.upper()} language"
             })
     
-    return jsonify({"voices": voices})
+    return jsonify({"voices": voice_list})
 
-@app.route('/api/info', methods=['GET'])
-def api_info():
-    """API information endpoint"""
+@app.route('/api/languages', methods=['GET'])
+def get_languages():
+    """Get supported languages"""
     tts = initialize_tts()
     return jsonify({
-        "name": "Enhanced TTS API",
-        "version": "1.0.0",
+        "languages": tts.get_supported_languages(),
+        "default": "en"
+    })
+
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    """Get service status and capabilities"""
+    tts = initialize_tts()
+    return jsonify({
+        "status": "ready" if tts.is_ready() else "not_ready",
         "engine": tts.get_model_info(),
         "supported_languages": tts.get_supported_languages(),
-        "endpoints": {
-            "synthesis": "/v1/audio/speech",
-            "models": "/v1/models",
-            "voices": "/v1/voices",
-            "health": "/health"
+        "supported_voices": tts.get_supported_voices(),
+        "capabilities": {
+            "streaming": True,
+            "multiple_voices": True,
+            "language_detection": True,
+            "openai_compatible": True
         }
     })
 
@@ -200,10 +210,21 @@ def internal_error(error):
     """Handle 500 errors"""
     return jsonify({"error": "Internal server error"}), 500
 
+@app.errorhandler(405)
+def method_not_allowed(error):
+    """Handle 405 errors"""
+    return jsonify({"error": "Method not allowed"}), 405
+
+
+
+
 if __name__ == "__main__":
-    # Initialize TTS service on startup
+    logger.info("Starting TTS Backend Server...")
     initialize_tts()
-    
-    logger.info("Starting Enhanced TTS Backend API...")
-port = int(os.environ.get("PORT", 8000))
-app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 8000))
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False,
+        threaded=True
+    )
