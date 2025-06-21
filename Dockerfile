@@ -1,20 +1,29 @@
-# Use lightweight Python base
-FROM python:3.11-slim
+# Use official Python slim image
+FROM python:3.10-slim
 
-# Install espeak-ng and other dependencies
-RUN apt update && apt install -y espeak-ng ffmpeg && apt clean
+# Install system dependencies for espeak-ng and audio handling
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    espeak-ng \
+    libespeak-ng1 \
+    build-essential \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy your code
+# Copy all files to container
 COPY . .
 
-# Install Python libraries
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Allow port (Railway uses dynamic port, so we’ll read from env)
+# Expose the port Flask will run on
 EXPOSE 8000
 
-# Start the app
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Run the Flask app
 CMD ["python", "app.py"]
