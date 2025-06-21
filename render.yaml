@@ -1,1 +1,6 @@
+services:
+  - type: web
+    name: tts-backend
+    env: docker
+    plan: free
 
